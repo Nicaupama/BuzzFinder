@@ -172,6 +172,71 @@ main {
 }
 .hint-link:hover { text-decoration: underline; }
 
+.divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 16px 0;
+}
+
+.save-state {
+  font-size: 11.5px;
+  color: var(--signal-low);
+  margin: 8px 2px 0;
+  min-height: 14px;
+  font-family: var(--font-mono);
+}
+.save-state.is-visible { color: #6FCF97; }
+
+.source-toggle {
+  display: flex;
+  gap: 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 16px;
+}
+.source-tab {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 13.5px;
+  padding: 9px 0;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.source-tab.is-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.source-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 3px;
+}
+.platform-badge {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  color: var(--text-faint);
+  margin-top: 2px;
+}
+.platform-badge.youtube { color: #FF6B5B; border-color: rgba(255,107,91,0.3); }
+.platform-badge.twitch { color: #B794F6; border-color: rgba(183,148,246,0.3); }
+
 .scan-form { display: flex; flex-direction: column; }
 
 .primary-btn {
@@ -250,7 +315,7 @@ main {
 .card-body { flex: 1; min-width: 0; }
 
 .card-title {
-  margin: 0 0 3px;
+  margin: 0;
   font-size: 15px;
   font-weight: 600;
   line-height: 1.35;

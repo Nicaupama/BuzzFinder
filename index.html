@@ -47,17 +47,38 @@
       <span>Clé API YouTube Data v3</span>
       <input type="password" id="api-key" placeholder="AIzaSy…" autocomplete="off" spellcheck="false" />
     </label>
-    <p class="hint">Stockée uniquement dans ton navigateur (localStorage). Jamais envoyée ailleurs qu'à l'API YouTube officielle.</p>
-    <a class="hint-link" href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Obtenir une clé API →</a>
+    <p class="save-state" id="yt-save-state" aria-live="polite"></p>
+    <a class="hint-link" href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Obtenir une clé YouTube →</a>
+
+    <hr class="divider" />
+
+    <label class="field">
+      <span>Twitch Client ID</span>
+      <input type="text" id="twitch-client-id" placeholder="ex : abcd1234…" autocomplete="off" spellcheck="false" />
+    </label>
+    <label class="field" style="margin-top:10px;">
+      <span>Twitch Client Secret</span>
+      <input type="password" id="twitch-client-secret" placeholder="ex : xyz9876…" autocomplete="off" spellcheck="false" />
+    </label>
+    <p class="save-state" id="twitch-save-state" aria-live="polite"></p>
+    <a class="hint-link" href="https://dev.twitch.tv/console/apps/create" target="_blank" rel="noopener">Créer une appli Twitch →</a>
+
+    <p class="hint">Toutes les clés restent uniquement dans ton navigateur (localStorage). Rien n'est envoyé à un serveur tiers.</p>
   </section>
 
   <section class="panel scan-form">
-    <label class="field">
-      <span>Sujet / mot-clé</span>
+    <div class="source-toggle" role="tablist" aria-label="Source">
+      <button type="button" class="source-tab is-active" data-source="youtube" role="tab" aria-selected="true">YouTube</button>
+      <button type="button" class="source-tab" data-source="twitch" role="tab" aria-selected="false">Twitch</button>
+    </div>
+
+    <label class="field" id="query-field">
+      <span id="query-label">Sujet / mot-clé</span>
       <input type="text" id="query" placeholder="ex : gaming clutch, interview, vulgarisation…" />
     </label>
+    <p class="hint" id="twitch-query-hint" hidden>Sur Twitch, indique le nom exact d'un jeu ou d'une catégorie (ex : "League of Legends", "Just Chatting").</p>
 
-    <div class="field-row">
+    <div class="field-row" id="region-row">
       <label class="field">
         <span>Région</span>
         <select id="region">
@@ -77,6 +98,13 @@
           <option value="180" selected>3 min</option>
           <option value="300">5 min</option>
           <option value="600">10 min</option>
+          <option value="900">15 min</option>
+          <option value="1200">20 min</option>
+          <option value="1800">30 min</option>
+          <option value="2700">45 min</option>
+          <option value="3600">60 min</option>
+          <option value="5400">1h30</option>
+          <option value="7200">2h</option>
         </select>
       </label>
     </div>
@@ -97,7 +125,10 @@
   <article class="card">
     <div class="card-rank"></div>
     <div class="card-body">
-      <h2 class="card-title"></h2>
+      <div class="card-head">
+        <h2 class="card-title"></h2>
+        <span class="platform-badge"></span>
+      </div>
       <p class="card-channel"></p>
 
       <div class="meter" title="Intensité du buzz">

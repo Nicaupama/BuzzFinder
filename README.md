@@ -43,6 +43,59 @@ git push -u origin main
 Le quota gratuit (10 000 unités/jour) permet largement plusieurs dizaines de
 scans par jour pour un usage perso.
 
+## 3bis. Obtenir des identifiants Twitch
+
+1. Va sur https://dev.twitch.tv/console/apps/create (connecte-toi avec ton
+   compte Twitch habituel)
+2. Nom de l'appli : ce que tu veux (ex: "buzzfinder-perso")
+3. OAuth Redirect URL : `https://localhost` (obligatoire mais pas utilisé
+   par ce projet, qui utilise le flow "Client Credentials")
+4. Catégorie : "Application Integration"
+5. Crée l'appli → tu obtiens un **Client ID**
+6. Clique sur "New Secret" pour générer un **Client Secret** (affiché une
+   seule fois, copie-le immédiatement)
+
+⚠️ Le Client Secret reste stocké uniquement dans ton navigateur, mais comme
+c'est une app 100% front-end, il est techniquement visible si quelqu'un
+inspecte le code de ton navigateur. Pour un usage strictement perso (toi
+seul utilise l'app, tu ne partages pas l'URL), le risque est minime — c'est
+le même compromis que pour la clé YouTube.
+
+Sur Twitch, le scan cherche les **VODs (rediffusions de streams)** les plus
+vues sur les 7 derniers jours pour un jeu/catégorie donné, triées par
+vélocité de vues. Les Clips Twitch (déjà très courts, quelques secondes à
+1 minute) ne sont pas inclus puisqu'ils sont déjà au format court — c'est
+les VODs longues qui valent la peine d'être scannées pour en extraire des
+clips.
+
+## 4. TikTok : pourquoi ce n'est pas inclus
+
+TikTok ne propose aucune API publique permettant de chercher ou lister les
+vidéos tendances/virales d'autres comptes. Les seules APIs officielles
+(TikTok for Developers — Display API, Content Posting API) ne donnent accès
+qu'**à ton propre compte**, pas à du contenu tiers. Tout scraping automatisé
+des pages "Trending" ou des résultats de recherche viole les conditions
+d'utilisation de TikTok et casse fréquemment (structure de page qui change,
+blocages anti-bot).
+
+**Solution réaliste pour repérer du contenu TikTok à cliper/éditer :**
+
+1. **Veille manuelle** : explore l'onglet Recherche / Trending dans l'app
+   TikTok, ou consulte le **TikTok Creative Center**
+   (https://ads.tiktok.com/business/creativecenter) qui publie publiquement
+   les hashtags et sons tendances (accessible sans compte business, à jour
+   quotidiennement)
+2. **Récupération** : une fois qu'une vidéo t'intéresse, copie son lien
+3. **Téléchargement** : utilise `yt-dlp` (déjà mentionné plus haut), qui
+   gère très bien le téléchargement de vidéos TikTok individuelles par URL :
+   ```bash
+   yt-dlp "https://www.tiktok.com/@compte/video/1234567890"
+   ```
+
+Ce flux (veille manuelle + téléchargement ciblé) reste la méthode la plus
+fiable et la plus pérenne à ce jour pour TikTok — aucun outil, même payant,
+ne contourne réellement cette limitation pour du contenu tiers.
+
 ## 4. Ajouter l'app sur ton iPhone (PWA)
 
 1. Ouvre `https://TON-PSEUDO.github.io/buzzfinder/` dans **Safari** (important :
