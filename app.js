@@ -1,6 +1,6 @@
 // ============================================================
-// Buzz Finder — scanner de vidéos YouTube + Twitch en forte croissance
-// Tout tourne côté client : aucun backend nécessaire.
+// Buzz Finder — scanner YouTube + Twitch, détection de replays,
+// générateur de hashtags. Tout tourne côté client.
 // ============================================================
 
 const els = {
@@ -11,18 +11,33 @@ const els = {
   twitchClientId: document.getElementById('twitch-client-id'),
   twitchClientSecret: document.getElementById('twitch-client-secret'),
   twitchSaveState: document.getElementById('twitch-save-state'),
+
+  viewEyebrow: document.getElementById('view-eyebrow'),
+  viewTitle: document.getElementById('view-title'),
+  railBtns: document.querySelectorAll('.rail-btn[data-view]'),
+  views: document.querySelectorAll('.view'),
+
   sourceTabs: document.querySelectorAll('.source-tab'),
-  queryField: document.getElementById('query-field'),
   queryLabel: document.getElementById('query-label'),
   twitchQueryHint: document.getElementById('twitch-query-hint'),
   regionRow: document.getElementById('region-row'),
   query: document.getElementById('query'),
   region: document.getElementById('region'),
   minDuration: document.getElementById('min-duration'),
+  typeFilter: document.getElementById('type-filter'),
   scanBtn: document.getElementById('scan-btn'),
   status: document.getElementById('status'),
   results: document.getElementById('results'),
   cardTpl: document.getElementById('result-card-tpl'),
+
+  hashtagTitle: document.getElementById('hashtag-title'),
+  hashtagChannel: document.getElementById('hashtag-channel'),
+  hashtagPlatform: document.getElementById('hashtag-platform'),
+  hashtagBtn: document.getElementById('hashtag-btn'),
+  hashtagOutputWrap: document.getElementById('hashtag-output-wrap'),
+  hashtagPills: document.getElementById('hashtag-pills'),
+  copyHashtagsBtn: document.getElementById('copy-hashtags-btn'),
+  copyConfirm: document.getElementById('copy-confirm'),
 };
 
 const STORAGE_KEYS = {
@@ -33,8 +48,14 @@ const STORAGE_KEYS = {
   source: 'buzzfinder.lastSource',
 };
 
+const VIEW_LABELS = {
+  scan: { eyebrow: 'Scanner en direct', title: 'Buzz Finder' },
+  hashtags: { eyebrow: 'Booster ta portée', title: 'Hashtags' },
+};
+
 let currentSource = 'youtube';
 let twitchTokenCache = null; // { token, expiresAt }
+let lastResults = []; // garde les derniers résultats pour le bouton "# Hashtags" des cartes
 
 // ---- Init: restore saved settings ----
 (function restore() {
@@ -82,13 +103,33 @@ els.apiKeyInput.addEventListener('change', () => {
   input.addEventListener('change', () => {
     localStorage.setItem(STORAGE_KEYS.twitchClientId, els.twitchClientId.value.trim());
     localStorage.setItem(STORAGE_KEYS.twitchClientSecret, els.twitchClientSecret.value.trim());
-    twitchTokenCache = null; // invalidate cached token if credentials change
+    twitchTokenCache = null;
     const hasBoth = els.twitchClientId.value.trim() && els.twitchClientSecret.value.trim();
     flashSaveState(els.twitchSaveState, hasBoth ? 'Identifiants Twitch sauvegardés ✓' : '');
   });
 });
 
-// ---- Source switching ----
+// ---- Navigation entre vues (rail de droite) ----
+
+function setView(view) {
+  els.railBtns.forEach((btn) => {
+    btn.classList.toggle('is-active', btn.dataset.view === view);
+  });
+  els.views.forEach((section) => {
+    section.classList.toggle('is-active', section.id === `view-${view}`);
+  });
+  const labels = VIEW_LABELS[view];
+  if (labels) {
+    els.viewEyebrow.textContent = labels.eyebrow;
+    els.viewTitle.textContent = labels.title;
+  }
+}
+
+els.railBtns.forEach((btn) => {
+  btn.addEventListener('click', () => setView(btn.dataset.view));
+});
+
+// ---- Source switching (YouTube / Twitch) ----
 
 function setSource(source) {
   currentSource = source;
@@ -104,7 +145,7 @@ function setSource(source) {
     els.queryLabel.textContent = 'Jeu / catégorie';
     els.query.placeholder = 'ex : League of Legends, Just Chatting…';
     els.twitchQueryHint.hidden = false;
-    els.regionRow.querySelector('label').style.display = 'none'; // region not used by Twitch
+    els.regionRow.querySelector('label').style.display = 'none';
   } else {
     els.queryLabel.textContent = 'Sujet / mot-clé';
     els.query.placeholder = 'ex : gaming clutch, interview, vulgarisation…';
@@ -118,6 +159,38 @@ function setSource(source) {
 
 els.sourceTabs.forEach((tab) => {
   tab.addEventListener('click', () => setSource(tab.dataset.source));
+});
+
+// ---- Catégories rapides ----
+
+const CATEGORY_PRESETS = {
+  youtube: {
+    gaming: 'gaming highlights montage',
+    esport: 'esport tournament highlights',
+    incredible: 'incredible moment caught on camera',
+    bigproject: 'mega projet construction documentaire',
+  },
+  twitch: {
+    gaming: 'Just Chatting',
+    esport: 'Esports',
+    incredible: 'Special Events',
+    bigproject: 'Science & Technology',
+  },
+};
+
+const categoryChips = document.querySelectorAll('.chip[data-category]');
+categoryChips.forEach((chip) => {
+  chip.addEventListener('click', () => {
+    categoryChips.forEach((c) => c.classList.toggle('is-active', c === chip));
+    const preset = CATEGORY_PRESETS[currentSource][chip.dataset.category];
+    els.query.value = preset;
+    runScan();
+  });
+});
+
+// Si l'utilisateur tape manuellement, on désactive l'état actif des puces
+els.query.addEventListener('input', () => {
+  categoryChips.forEach((c) => c.classList.remove('is-active'));
 });
 
 // ---- Helpers ----
@@ -176,10 +249,11 @@ async function searchYouTube({ apiKey, query, region, maxResults = 25 }) {
   const videoIds = (searchData.items || []).map((item) => item.id.videoId).filter(Boolean);
   if (videoIds.length === 0) return [];
 
+  // part inclut liveStreamingDetails pour détecter les replays de live
   const videosUrl = new URL('https://www.googleapis.com/youtube/v3/videos');
   videosUrl.search = new URLSearchParams({
     id: videoIds.join(','),
-    part: 'snippet,statistics,contentDetails',
+    part: 'snippet,statistics,contentDetails,liveStreamingDetails',
     key: apiKey,
   }).toString();
 
@@ -194,6 +268,7 @@ async function searchYouTube({ apiKey, query, region, maxResults = 25 }) {
     const stats = video.statistics || {};
     const snippet = video.snippet || {};
     const content = video.contentDetails || {};
+    const live = video.liveStreamingDetails;
 
     const views = parseInt(stats.viewCount || '0', 10);
     const likes = parseInt(stats.likeCount || '0', 10);
@@ -203,6 +278,9 @@ async function searchYouTube({ apiKey, query, region, maxResults = 25 }) {
     const viewsPerHour = views / hoursElapsed;
     const engagementRate = views > 0 ? (likes + comments) / views : 0;
     const durationSeconds = parseISO8601Duration(content.duration);
+
+    // Replay = livestream qui s'est terminé (actualEndTime présent)
+    const isReplay = Boolean(live && live.actualEndTime);
 
     return {
       platform: 'youtube',
@@ -216,6 +294,7 @@ async function searchYouTube({ apiKey, query, region, maxResults = 25 }) {
       viewsPerHour,
       engagementRatePct: Math.round(engagementRate * 1000) / 10,
       buzzScore: viewsPerHour * (1 + engagementRate * 5),
+      isReplay,
     };
   });
 }
@@ -249,7 +328,6 @@ async function searchTwitch({ clientId, clientSecret, query, maxResults = 25 }) 
   const token = await getTwitchToken(clientId, clientSecret);
   const headers = { 'Client-Id': clientId, Authorization: `Bearer ${token}` };
 
-  // Step 1: resolve game/category name -> id
   const gameUrl = new URL('https://api.twitch.tv/helix/games');
   gameUrl.search = new URLSearchParams({ name: query }).toString();
   const gameRes = await fetch(gameUrl, { headers });
@@ -258,7 +336,6 @@ async function searchTwitch({ clientId, clientSecret, query, maxResults = 25 }) 
   const game = (gameData.data || [])[0];
   if (!game) throw new Error(`Aucun jeu/catégorie Twitch trouvé pour « ${query} ». Vérifie l'orthographe exacte.`);
 
-  // Step 2: fetch top VODs (archives) for that game, sorted by views over the last week
   const videosUrl = new URL('https://api.twitch.tv/helix/videos');
   videosUrl.search = new URLSearchParams({
     game_id: game.id,
@@ -271,6 +348,7 @@ async function searchTwitch({ clientId, clientSecret, query, maxResults = 25 }) 
   if (!videosRes.ok) throw new Error(`Erreur API Twitch (vidéos) : ${videosRes.status}`);
   const videosData = await videosRes.json();
 
+  // Toutes les vidéos de type "archive" sont par nature des rediffusions de live
   return (videosData.data || []).map((v) => {
     const views = v.view_count || 0;
     const createdAt = new Date(v.created_at);
@@ -288,13 +366,14 @@ async function searchTwitch({ clientId, clientSecret, query, maxResults = 25 }) 
       durationSeconds,
       durationMin: Math.round((durationSeconds / 60) * 10) / 10,
       viewsPerHour,
-      engagementRatePct: null, // Twitch API doesn't expose likes/comments on VODs
+      engagementRatePct: null,
       buzzScore: viewsPerHour,
+      isReplay: true,
     };
   });
 }
 
-// ---- Rendering ----
+// ---- Rendering résultats ----
 
 function renderResults(videos) {
   els.results.innerHTML = '';
@@ -306,6 +385,7 @@ function renderResults(videos) {
     const node = els.cardTpl.content.cloneNode(true);
     const card = node.querySelector('.card');
     card.style.animationDelay = `${index * 45}ms`;
+    if (v.isReplay) card.classList.add('is-replay');
 
     node.querySelector('.card-rank').textContent = String(index + 1).padStart(2, '0');
     node.querySelector('.card-title').textContent = v.title;
@@ -314,6 +394,9 @@ function renderResults(videos) {
     const badge = node.querySelector('.platform-badge');
     badge.textContent = v.platform === 'twitch' ? 'Twitch' : 'YouTube';
     badge.classList.add(v.platform);
+
+    const replayBadge = node.querySelector('.replay-badge');
+    replayBadge.hidden = !v.isReplay;
 
     const fillPct = Math.max(6, Math.round((v.buzzScore / maxScore) * 100));
     node.querySelector('.meter-fill').style.width = fillPct + '%';
@@ -327,15 +410,25 @@ function renderResults(videos) {
     const link = node.querySelector('.card-link');
     link.href = v.url;
 
+    const hashtagBtn = node.querySelector('.card-hashtag-btn');
+    hashtagBtn.addEventListener('click', () => {
+      els.hashtagTitle.value = v.title;
+      els.hashtagChannel.value = v.channel;
+      els.hashtagPlatform.value = v.platform === 'twitch' ? 'all' : 'shorts';
+      setView('hashtags');
+      generateHashtags();
+    });
+
     els.results.appendChild(node);
   });
 }
 
-// ---- Main scan action ----
+// ---- Scan principal ----
 
 async function runScan() {
   const query = els.query.value.trim();
   const minDuration = parseInt(els.minDuration.value, 10);
+  const typeFilterValue = els.typeFilter.value; // all | video | replay
 
   if (!query) {
     setStatus(currentSource === 'twitch' ? 'Indique un jeu ou une catégorie.' : 'Indique un sujet ou un mot-clé.', 'error');
@@ -372,14 +465,21 @@ async function runScan() {
       scored = await searchTwitch({ clientId, clientSecret, query, maxResults: 25 });
     }
 
-    const clippable = scored.filter((v) => v.durationSeconds >= minDuration);
-    clippable.sort((a, b) => b.buzzScore - a.buzzScore);
+    let filtered = scored.filter((v) => v.durationSeconds >= minDuration);
 
-    if (clippable.length === 0) {
-      setStatus('Aucune vidéo assez longue trouvée. Essaie une durée min. plus courte ou un autre mot-clé.', 'empty');
+    if (typeFilterValue === 'video') filtered = filtered.filter((v) => !v.isReplay);
+    if (typeFilterValue === 'replay') filtered = filtered.filter((v) => v.isReplay);
+
+    filtered.sort((a, b) => b.buzzScore - a.buzzScore);
+    lastResults = filtered;
+
+    if (filtered.length === 0) {
+      setStatus('Aucune vidéo ne correspond à ces critères. Essaie une durée ou un filtre différent.', 'empty');
     } else {
-      setStatus(`${clippable.length} vidéo(s) candidate(s), triée(s) par intensité de buzz.`);
-      renderResults(clippable.slice(0, 10));
+      const replayCount = filtered.filter((v) => v.isReplay).length;
+      const replayNote = replayCount > 0 ? ` (dont ${replayCount} replay${replayCount > 1 ? 's' : ''})` : '';
+      setStatus(`${filtered.length} vidéo(s) candidate(s)${replayNote}, triée(s) par intensité de buzz.`);
+      renderResults(filtered.slice(0, 10));
     }
   } catch (err) {
     console.error(err);
@@ -393,6 +493,116 @@ async function runScan() {
 els.scanBtn.addEventListener('click', runScan);
 els.query.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') runScan();
+});
+
+// ============================================================
+// Générateur de hashtags
+// ============================================================
+
+const STOPWORDS = new Set([
+  'le','la','les','un','une','des','de','du','et','à','au','aux','en','sur','dans','pour','par',
+  'avec','sans','ce','cet','cette','ces','son','sa','ses','qui','que','quoi','est','sont','plus',
+  'the','a','an','of','in','on','at','to','for','with','and','or','is','are','this','that',
+  'tu','je','il','elle','on','nous','vous','ils','elles','pas','mais','ou','où','quand',
+]);
+
+const PLATFORM_TAGS = {
+  tiktok: ['#fyp', '#pourtoi', '#viral', '#tiktok', '#trend'],
+  shorts: ['#shorts', '#youtubeshorts', '#viral', '#trending'],
+  reels: ['#reels', '#reelsinstagram', '#viral', '#explorepage'],
+  all: ['#viral', '#fyp', '#shorts', '#reels', '#trending'],
+};
+
+function slugifyHashtag(word) {
+  return word
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // accents
+    .replace(/[^a-zA-Z0-9]/g, '');
+}
+
+function extractKeywordsFromTitle(title) {
+  if (!title) return [];
+  const words = title
+    .split(/[\s\-–—|:•,!?()[\]"']+/)
+    .map((w) => w.trim())
+    .filter(Boolean);
+
+  const keywords = [];
+  for (const w of words) {
+    const clean = slugifyHashtag(w);
+    if (clean.length < 3) continue;
+    if (STOPWORDS.has(w.toLowerCase())) continue;
+    if (keywords.includes(clean.toLowerCase())) continue;
+    keywords.push(clean);
+    if (keywords.length >= 6) break;
+  }
+  return keywords;
+}
+
+function generateHashtags() {
+  const title = els.hashtagTitle.value.trim();
+  const channel = els.hashtagChannel.value.trim();
+  const platform = els.hashtagPlatform.value;
+
+  if (!title) {
+    els.hashtagOutputWrap.hidden = true;
+    return;
+  }
+
+  const tags = [];
+
+  // 1. Mots-clés tirés du titre
+  for (const kw of extractKeywordsFromTitle(title)) {
+    tags.push('#' + kw);
+  }
+
+  // 2. Tag de la chaîne / créateur
+  if (channel) {
+    const channelTag = slugifyHashtag(channel);
+    if (channelTag.length >= 3) tags.push('#' + channelTag);
+  }
+
+  // 3. Tags génériques liés à la plateforme cible
+  for (const t of PLATFORM_TAGS[platform] || PLATFORM_TAGS.all) {
+    if (!tags.includes(t)) tags.push(t);
+  }
+
+  // 4. Tag "clip"/"edit" toujours pertinent pour ce type de contenu
+  ['#clip', '#edit', '#highlights'].forEach((t) => {
+    if (!tags.includes(t) && tags.length < 15) tags.push(t);
+  });
+
+  renderHashtags(tags.slice(0, 15));
+}
+
+function renderHashtags(tags) {
+  els.hashtagPills.innerHTML = '';
+  tags.forEach((tag) => {
+    const pill = document.createElement('span');
+    pill.className = 'hashtag-pill';
+    pill.textContent = tag;
+    els.hashtagPills.appendChild(pill);
+  });
+  els.hashtagOutputWrap.hidden = false;
+  els.copyConfirm.textContent = '';
+  els.copyConfirm.classList.remove('is-visible');
+}
+
+els.hashtagBtn.addEventListener('click', generateHashtags);
+els.hashtagTitle.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') generateHashtags();
+});
+
+els.copyHashtagsBtn.addEventListener('click', async () => {
+  const tags = Array.from(els.hashtagPills.querySelectorAll('.hashtag-pill')).map((el) => el.textContent);
+  const text = tags.join(' ');
+  try {
+    await navigator.clipboard.writeText(text);
+    els.copyConfirm.textContent = 'Copié dans le presse-papiers ✓';
+    els.copyConfirm.classList.add('is-visible');
+  } catch {
+    els.copyConfirm.textContent = 'Impossible de copier automatiquement — sélectionne le texte manuellement.';
+    els.copyConfirm.classList.remove('is-visible');
+  }
 });
 
 // ---- PWA service worker registration ----

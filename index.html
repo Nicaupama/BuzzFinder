@@ -4,11 +4,10 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Buzz Finder — Scanner de vidéos</title>
-<meta name="description" content="Détecte les vidéos YouTube en forte croissance, prêtes à cliper." />
+<meta name="description" content="Détecte les vidéos en forte croissance, prêtes à cliper." />
 
-<!-- PWA -->
 <link rel="manifest" href="manifest.json" />
-<meta name="theme-color" content="#10131A" />
+<meta name="theme-color" content="#0E1117" />
 <link rel="apple-touch-icon" href="icons/icon-192.png" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -28,8 +27,8 @@
   <div class="brand">
     <span class="brand-mark" aria-hidden="true"></span>
     <div class="brand-text">
-      <span class="eyebrow">Scanner en direct</span>
-      <h1>Buzz&nbsp;Finder</h1>
+      <span class="eyebrow" id="view-eyebrow">Scanner en direct</span>
+      <h1 id="view-title">Buzz&nbsp;Finder</h1>
     </div>
   </div>
   <button id="settings-toggle" class="icon-btn" aria-label="Paramètres" aria-expanded="false">
@@ -40,86 +39,184 @@
   </button>
 </header>
 
-<main>
+<div class="app-shell">
 
-  <section id="settings-panel" class="panel settings-panel" hidden>
-    <label class="field">
-      <span>Clé API YouTube Data v3</span>
-      <input type="password" id="api-key" placeholder="AIzaSy…" autocomplete="off" spellcheck="false" />
-    </label>
-    <p class="save-state" id="yt-save-state" aria-live="polite"></p>
-    <a class="hint-link" href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Obtenir une clé YouTube →</a>
+  <main class="view-stack">
 
-    <hr class="divider" />
-
-    <label class="field">
-      <span>Twitch Client ID</span>
-      <input type="text" id="twitch-client-id" placeholder="ex : abcd1234…" autocomplete="off" spellcheck="false" />
-    </label>
-    <label class="field" style="margin-top:10px;">
-      <span>Twitch Client Secret</span>
-      <input type="password" id="twitch-client-secret" placeholder="ex : xyz9876…" autocomplete="off" spellcheck="false" />
-    </label>
-    <p class="save-state" id="twitch-save-state" aria-live="polite"></p>
-    <a class="hint-link" href="https://dev.twitch.tv/console/apps/create" target="_blank" rel="noopener">Créer une appli Twitch →</a>
-
-    <p class="hint">Toutes les clés restent uniquement dans ton navigateur (localStorage). Rien n'est envoyé à un serveur tiers.</p>
-  </section>
-
-  <section class="panel scan-form">
-    <div class="source-toggle" role="tablist" aria-label="Source">
-      <button type="button" class="source-tab is-active" data-source="youtube" role="tab" aria-selected="true">YouTube</button>
-      <button type="button" class="source-tab" data-source="twitch" role="tab" aria-selected="false">Twitch</button>
-    </div>
-
-    <label class="field" id="query-field">
-      <span id="query-label">Sujet / mot-clé</span>
-      <input type="text" id="query" placeholder="ex : gaming clutch, interview, vulgarisation…" />
-    </label>
-    <p class="hint" id="twitch-query-hint" hidden>Sur Twitch, indique le nom exact d'un jeu ou d'une catégorie (ex : "League of Legends", "Just Chatting").</p>
-
-    <div class="field-row" id="region-row">
+    <section id="settings-panel" class="panel settings-panel" hidden>
       <label class="field">
-        <span>Région</span>
-        <select id="region">
-          <option value="FR" selected>France</option>
-          <option value="BE">Belgique</option>
-          <option value="CH">Suisse</option>
-          <option value="CA">Canada</option>
-          <option value="US">États-Unis</option>
-          <option value="GB">Royaume-Uni</option>
-        </select>
+        <span>Clé API YouTube Data v3</span>
+        <input type="password" id="api-key" placeholder="AIzaSy…" autocomplete="off" spellcheck="false" />
       </label>
+      <p class="save-state" id="yt-save-state" aria-live="polite"></p>
+      <a class="hint-link" href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Obtenir une clé YouTube →</a>
+
+      <hr class="divider" />
 
       <label class="field">
-        <span>Durée min.</span>
-        <select id="min-duration">
-          <option value="120">2 min</option>
-          <option value="180" selected>3 min</option>
-          <option value="300">5 min</option>
-          <option value="600">10 min</option>
-          <option value="900">15 min</option>
-          <option value="1200">20 min</option>
-          <option value="1800">30 min</option>
-          <option value="2700">45 min</option>
-          <option value="3600">60 min</option>
-          <option value="5400">1h30</option>
-          <option value="7200">2h</option>
-        </select>
+        <span>Twitch Client ID</span>
+        <input type="text" id="twitch-client-id" placeholder="ex : abcd1234…" autocomplete="off" spellcheck="false" />
       </label>
-    </div>
+      <label class="field" style="margin-top:10px;">
+        <span>Twitch Client Secret</span>
+        <input type="password" id="twitch-client-secret" placeholder="ex : xyz9876…" autocomplete="off" spellcheck="false" />
+      </label>
+      <p class="save-state" id="twitch-save-state" aria-live="polite"></p>
+      <a class="hint-link" href="https://dev.twitch.tv/console/apps/create" target="_blank" rel="noopener">Créer une appli Twitch →</a>
 
-    <button id="scan-btn" class="primary-btn">
-      <span class="btn-label">Scanner le buzz</span>
-      <span class="btn-pulse" aria-hidden="true"></span>
+      <p class="hint">Toutes les clés restent uniquement dans ton navigateur (localStorage). Rien n'est envoyé à un serveur tiers.</p>
+    </section>
+
+    <!-- ===================== VUE : SCANNER ===================== -->
+    <section id="view-scan" class="view is-active">
+
+      <section class="panel scan-form">
+        <div class="source-toggle" role="tablist" aria-label="Source">
+          <button type="button" class="source-tab is-active" data-source="youtube" role="tab" aria-selected="true">YouTube</button>
+          <button type="button" class="source-tab" data-source="twitch" role="tab" aria-selected="false">Twitch</button>
+        </div>
+
+        <label class="field" id="query-field">
+          <span id="query-label">Sujet / mot-clé</span>
+          <input type="text" id="query" placeholder="ex : gaming clutch, interview, vulgarisation…" />
+        </label>
+
+        <div class="category-chips" role="group" aria-label="Catégories rapides">
+          <button type="button" class="chip" data-category="gaming">🎮 Gaming</button>
+          <button type="button" class="chip" data-category="esport">🏆 Esport</button>
+          <button type="button" class="chip" data-category="incredible">🤯 Moment incroyable</button>
+          <button type="button" class="chip" data-category="bigproject">🏗️ Gros projet</button>
+        </div>
+
+        <p class="hint" id="twitch-query-hint" hidden>Sur Twitch, indique le nom exact d'un jeu ou d'une catégorie (ex : "League of Legends", "Just Chatting").</p>
+
+        <div class="field-row" id="region-row">
+          <label class="field">
+            <span>Région</span>
+            <select id="region">
+              <option value="FR" selected>France</option>
+              <option value="BE">Belgique</option>
+              <option value="CH">Suisse</option>
+              <option value="CA">Canada</option>
+              <option value="US">États-Unis</option>
+              <option value="GB">Royaume-Uni</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span>Durée min.</span>
+            <select id="min-duration">
+              <option value="120">2 min</option>
+              <option value="180" selected>3 min</option>
+              <option value="300">5 min</option>
+              <option value="600">10 min</option>
+              <option value="900">15 min</option>
+              <option value="1200">20 min</option>
+              <option value="1800">30 min</option>
+              <option value="2700">45 min</option>
+              <option value="3600">60 min</option>
+              <option value="5400">1h30</option>
+              <option value="7200">2h</option>
+            </select>
+          </label>
+        </div>
+
+        <label class="field" style="margin-top:14px;">
+          <span>Type de vidéo</span>
+          <select id="type-filter">
+            <option value="all" selected>Toutes</option>
+            <option value="video">Vidéos classiques uniquement</option>
+            <option value="replay">Replays / rediffusions uniquement</option>
+          </select>
+        </label>
+
+        <button id="scan-btn" class="primary-btn">
+          <span class="btn-label">Scanner le buzz</span>
+          <span class="btn-pulse" aria-hidden="true"></span>
+        </button>
+      </section>
+
+      <section id="status" class="status" role="status" aria-live="polite"></section>
+
+      <section id="results" class="results"></section>
+
+    </section>
+
+    <!-- ===================== VUE : HASHTAGS ===================== -->
+    <section id="view-hashtags" class="view">
+
+      <section class="panel">
+        <label class="field">
+          <span>Titre de la vidéo</span>
+          <input type="text" id="hashtag-title" placeholder="Colle ou tape le titre de ta vidéo…" />
+        </label>
+
+        <div class="field-row" style="margin-top:14px;">
+          <label class="field">
+            <span>Chaîne (optionnel)</span>
+            <input type="text" id="hashtag-channel" placeholder="ex : MaChaîne" />
+          </label>
+          <label class="field">
+            <span>Plateforme cible</span>
+            <select id="hashtag-platform">
+              <option value="tiktok" selected>TikTok</option>
+              <option value="shorts">YouTube Shorts</option>
+              <option value="reels">Instagram Reels</option>
+              <option value="all">Toutes</option>
+            </select>
+          </label>
+        </div>
+
+        <button id="hashtag-btn" class="primary-btn" style="margin-top:18px;">
+          <span class="btn-label">Générer les hashtags</span>
+          <span class="btn-pulse" aria-hidden="true"></span>
+        </button>
+      </section>
+
+      <section id="hashtag-output-wrap" class="panel" hidden>
+        <div class="hashtag-output-head">
+          <span class="field-label-standalone">Hashtags suggérés</span>
+          <button id="copy-hashtags-btn" class="ghost-btn">Copier tout</button>
+        </div>
+        <div id="hashtag-pills" class="hashtag-pills"></div>
+        <p id="copy-confirm" class="save-state" aria-live="polite"></p>
+      </section>
+
+    </section>
+
+  </main>
+
+  <!-- ===================== RAIL DE FONCTIONNALITÉS ===================== -->
+  <nav class="rail" aria-label="Fonctionnalités">
+    <button type="button" class="rail-btn is-active" data-view="scan" aria-label="Scanner">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>
+      </svg>
+      <span>Scanner</span>
     </button>
-  </section>
+    <button type="button" class="rail-btn" data-view="hashtags" aria-label="Hashtags">
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path d="M5 9h14M5 15h14M10 4 8 20M16 4l-2 16"/>
+      </svg>
+      <span>Hashtags</span>
+    </button>
+    <button type="button" class="rail-btn is-disabled" aria-label="Clipping (bientôt)" disabled>
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path d="M6 3 18 21M18 3 6 21"/><circle cx="6" cy="6" r="2.4"/><circle cx="6" cy="18" r="2.4"/><circle cx="18" cy="6" r="2.4"/><circle cx="18" cy="18" r="2.4"/>
+      </svg>
+      <span>Clip</span>
+      <em>Bientôt</em>
+    </button>
+    <button type="button" class="rail-btn is-disabled" aria-label="Publication (bientôt)" disabled>
+      <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path d="M3 11l18-8-8 18-2.5-7.5L3 11Z"/>
+      </svg>
+      <span>Poster</span>
+      <em>Bientôt</em>
+    </button>
+  </nav>
 
-  <section id="status" class="status" role="status" aria-live="polite"></section>
-
-  <section id="results" class="results"></section>
-
-</main>
+</div>
 
 <template id="result-card-tpl">
   <article class="card">
@@ -130,6 +227,11 @@
         <span class="platform-badge"></span>
       </div>
       <p class="card-channel"></p>
+
+      <span class="replay-badge" hidden>
+        <span class="replay-dot" aria-hidden="true"></span>
+        Replay / rediffusion
+      </span>
 
       <div class="meter" title="Intensité du buzz">
         <div class="meter-fill"></div>
@@ -142,7 +244,10 @@
         <div><dt>Engagement</dt><dd class="stat-engagement"></dd></div>
       </dl>
 
-      <a class="card-link" target="_blank" rel="noopener">Voir sur YouTube →</a>
+      <div class="card-actions">
+        <a class="card-link" target="_blank" rel="noopener">Voir →</a>
+        <button class="card-hashtag-btn ghost-btn">#&nbsp;Hashtags</button>
+      </div>
     </div>
   </article>
 </template>
