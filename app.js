@@ -30,6 +30,15 @@ const els = {
   results: document.getElementById('results'),
   cardTpl: document.getElementById('result-card-tpl'),
 
+  ideasNiche: document.getElementById('ideas-niche'),
+  ideasPlatform: document.getElementById('ideas-platform'),
+  ideasHistory: document.getElementById('ideas-history'),
+  ideasFeedback: document.getElementById('ideas-feedback'),
+  ideasApiKey: document.getElementById('ideas-api-key'),
+  ideasKeyState: document.getElementById('ideas-key-state'),
+  ideasBtn: document.getElementById('ideas-btn'),
+  ideasOutput: document.getElementById('ideas-output'),
+
   hashtagTitle: document.getElementById('hashtag-title'),
   hashtagChannel: document.getElementById('hashtag-channel'),
   hashtagPlatform: document.getElementById('hashtag-platform'),
@@ -50,6 +59,7 @@ const STORAGE_KEYS = {
 
 const VIEW_LABELS = {
   scan: { eyebrow: 'Scanner en direct', title: 'Buzz Finder' },
+  ideas: { eyebrow: 'Inspiré par ton profil', title: 'Mes Idées' },
   hashtags: { eyebrow: 'Booster ta portée', title: 'Hashtags' },
 };
 
@@ -75,6 +85,12 @@ let lastResults = []; // garde les derniers résultats pour le bouton "# Hashtag
 
   const savedQuery = localStorage.getItem(STORAGE_KEYS.query);
   if (savedQuery) els.query.value = savedQuery;
+
+  const savedIdeasKey = localStorage.getItem('buzzfinder.anthropicKey');
+  if (savedIdeasKey) {
+    els.ideasApiKey.value = savedIdeasKey;
+    flashSaveState(els.ideasKeyState, 'Clé Anthropic en mémoire ✓');
+  }
 
   const savedSource = localStorage.getItem(STORAGE_KEYS.source);
   if (savedSource === 'twitch') setSource('twitch');
@@ -604,6 +620,207 @@ els.copyHashtagsBtn.addEventListener('click', async () => {
     els.copyConfirm.classList.remove('is-visible');
   }
 });
+
+// ============================================================
+// VUE IDÉES — Conseils personnalisés via Claude
+// ============================================================
+
+// Sync clé Anthropic depuis settings → champ dédié idées (même clé)
+const ANTHROPIC_KEY_STORAGE = 'buzzfinder.anthropicKey';
+
+function getAnthropicKey() {
+  return (
+    els.anthropicKeyInput?.value?.trim() ||
+    els.ideasApiKey?.value?.trim() ||
+    localStorage.getItem(ANTHROPIC_KEY_STORAGE) ||
+    ''
+  );
+}
+
+// Attache les champs de clé Anthropic (settings panel + champ dédié idées)
+const anthropicInputs = [
+  document.getElementById('anthropic-key'),
+  document.getElementById('ideas-api-key'),
+];
+anthropicInputs.forEach((input) => {
+  if (!input) return;
+  const saved = localStorage.getItem(ANTHROPIC_KEY_STORAGE);
+  if (saved) input.value = saved;
+  input.addEventListener('change', () => {
+    const val = input.value.trim();
+    localStorage.setItem(ANTHROPIC_KEY_STORAGE, val);
+    anthropicInputs.forEach((other) => { if (other && other !== input) other.value = val; });
+    const stateEl = document.getElementById('anthropic-save-state') || document.getElementById('ideas-key-state');
+    if (stateEl) flashSaveState(stateEl, val ? 'Clé Anthropic sauvegardée ✓' : '');
+    const ideasState = document.getElementById('ideas-key-state');
+    if (ideasState) flashSaveState(ideasState, val ? 'Clé Anthropic sauvegardée ✓' : '');
+  });
+});
+
+const NICHE_LABELS = {
+  gaming: 'Gaming (clips, highlights, gameplay)',
+  esport: 'Esport / Compétitif (tournois, pros, matchs)',
+  incredible: 'Moments incroyables (WTF, surprises, réactions)',
+  bigproject: 'Gros projets / Construction / Ingénierie',
+  irl: 'IRL / Vlogs (quotidien, aventures, rencontres)',
+  tech: 'Tech / Science / Vulgarisation',
+  other: 'Contenu divers',
+};
+
+const PLATFORM_ADVICE = {
+  tiktok: 'TikTok (format 15-60s, forte énergie dès la première seconde, texte à l\'écran)',
+  shorts: 'YouTube Shorts (format ≤60s, vertical, algo favorise les boucles et le watch-time)',
+  reels: 'Instagram Reels (format 15-90s, musique tendance, transitions visuelles)',
+};
+
+async function generateIdeas() {
+  const apiKey = getAnthropicKey();
+  const niche = els.ideasNiche.value;
+  const platform = els.ideasPlatform.value;
+  const history = els.ideasHistory.value.trim();
+  const feedback = els.ideasFeedback.value.trim();
+
+  if (!apiKey) {
+    els.ideasKeyState.textContent = 'Ajoute ta clé Anthropic pour générer des idées.';
+    els.ideasKeyState.classList.remove('is-visible');
+    els.ideasApiKey.focus();
+    return;
+  }
+  if (!niche) {
+    els.ideasOutput.hidden = true;
+    els.ideasOutput.innerHTML = '<p class="ideas-error">Sélectionne ta niche principale.</p>';
+    els.ideasOutput.hidden = false;
+    return;
+  }
+
+  els.ideasBtn.disabled = true;
+  els.ideasBtn.classList.add('is-loading');
+  els.ideasOutput.hidden = false;
+  els.ideasOutput.innerHTML = `
+    <div class="ideas-loading">
+      <div class="loading-dots"><span></span><span></span><span></span></div>
+      <p>Claude analyse ton profil et génère des idées…</p>
+    </div>`;
+
+  const prompt = `Tu es un expert en création de contenu viral sur les réseaux sociaux, spécialisé dans la niche ${NICHE_LABELS[niche] || niche}.
+
+Profil du créateur :
+- Niche : ${NICHE_LABELS[niche] || niche}
+- Plateforme cible : ${PLATFORM_ADVICE[platform] || platform}
+${history ? \`- Dernières vidéos postées :\n\${history.split('\n').map(l => '  • ' + l).join('\n')}\` : '- Pas encore de vidéos postées / pas de titres fournis'}
+${feedback ? \`- Ce qui a fonctionné / pas fonctionné : \${feedback}\` : ''}
+
+Génère exactement 8 idées de vidéos courtes CONCRÈTES et prêtes à produire.
+
+Pour chaque idée tu dois fournir :
+- Un titre final, percutant, prêt à publier (avec emojis si pertinent, style accrocheur adapté à la plateforme)
+- Le format exact : durée recommandée + style de montage (ex : "45s — coupures rapides, musique épique, sous-titres grands")
+- Pourquoi ça va marcher : 1 phrase ultra-courte et directe, basée sur ce qui fonctionne actuellement dans cette niche
+- 3 hashtags ultra-ciblés pour maximiser la portée
+
+Règles importantes :
+- Les idées doivent être VARIÉES : pas toutes le même format ou le même angle
+- Adapte le ton à la plateforme (TikTok = énergie folle, Shorts = boucle forte, Reels = esthétique + musique)
+- Certaines idées doivent exploiter les tendances actuelles de la niche
+- Si des vidéos passées sont mentionnées, propose des idées complémentaires ou des suites logiques
+
+Réponds UNIQUEMENT en JSON valide, sans texte avant ou après :
+[
+  {
+    "title": "Titre accrocheur prêt à publier",
+    "format": "45s — montage rapide + sous-titres grands",
+    "why": "Pourquoi ça marche en une phrase",
+    "hashtags": ["#tag1", "#tag2", "#tag3"]
+  }
+]`;
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 2000,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err?.error?.message || `Erreur API Anthropic : ${response.status}`);
+    }
+
+    const data = await response.json();
+    const raw = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
+    const clean = raw.replace(/```json|```/g, '').trim();
+    const ideas = JSON.parse(clean);
+    renderIdeas(ideas, niche, platform);
+  } catch (err) {
+    console.error(err);
+    els.ideasOutput.innerHTML = `<p class="ideas-error">Erreur : ${err.message}</p>`;
+  } finally {
+    els.ideasBtn.disabled = false;
+    els.ideasBtn.classList.remove('is-loading');
+  }
+}
+
+function renderIdeas(ideas, niche, platform) {
+  const nicheEmoji = { gaming: '🎮', esport: '🏆', incredible: '🤯', bigproject: '🏗️', irl: '🎥', tech: '💡', other: '🎭' }[niche] || '💡';
+
+  let html = `<div class="ideas-header">
+    <span class="ideas-meta">${nicheEmoji} ${NICHE_LABELS[niche] || niche} — ${ideas.length} idées générées</span>
+  </div>
+  <div class="ideas-grid">`;
+
+  ideas.forEach((idea, i) => {
+    const pills = (idea.hashtags || []).map((h) => `<span class="idea-hashtag">${h}</span>`).join('');
+    html += `
+    <div class="idea-card" style="animation-delay:${i * 55}ms">
+      <div class="idea-num">${String(i + 1).padStart(2, '0')}</div>
+      <div class="idea-body">
+        <h3 class="idea-title">${escapeHtml(idea.title)}</h3>
+        <div class="idea-format">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+          ${escapeHtml(idea.format || '')}
+        </div>
+        <p class="idea-why">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="m13 2-2 2.5h3L12 7"/><path d="M10 14 2.3 6.3a2.4 2.4 0 0 1 3.4-3.4L13 10"/><path d="m6.6 11.5-1.1 1.1a2.4 2.4 0 1 0 3.4 3.4l6.9-6.9a2.4 2.4 0 0 0-3.4-3.4"/><path d="m14 14 2.5 2.5"/><path d="M22 22l-5-5"/></svg>
+          ${escapeHtml(idea.why || '')}
+        </p>
+        <div class="idea-tags">${pills}</div>
+      </div>
+    </div>`;
+  });
+
+  html += `</div>
+  <button id="ideas-copy-all" class="ghost-btn" style="margin-top:14px;width:100%;">
+    Copier toutes les idées (texte)
+  </button>`;
+
+  els.ideasOutput.innerHTML = html;
+  els.ideasOutput.hidden = false;
+
+  document.getElementById('ideas-copy-all')?.addEventListener('click', async () => {
+    const text = ideas.map((idea, i) =>
+      `${i + 1}. ${idea.title}\n   Format : ${idea.format}\n   Pourquoi : ${idea.why}\n   Tags : ${(idea.hashtags || []).join(' ')}`
+    ).join('\n\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      document.getElementById('ideas-copy-all').textContent = 'Copié ✓';
+    } catch { /* silent */ }
+  });
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+els.ideasBtn.addEventListener('click', generateIdeas);
 
 // ---- PWA service worker registration ----
 if ('serviceWorker' in navigator) {
